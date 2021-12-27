@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"time"
-	"strconv"
 	"encoding/csv"
 	"encoding/json"
 	"crypto/tls"
@@ -27,6 +26,78 @@ type SubscribeReq struct {
 	Type       string   `json:"type"`
 	ProductIds []string `json:"product_ids"`
 	Channels   []string `json:"channels"`
+}
+
+type GenericResponse struct {
+	Type string `json:"type"`
+}
+
+type MatchResponse struct {
+	Type string `json:"type"`
+	TradeID int64 `json:"trade_id"`
+	MakerOrderID string `json:"maker_order_id"`
+	TakerOrderID string `json:"taker_order_id"`
+	Side string `json:"side"`
+	Size string `json:"size"`
+	Price string `json:"price"`
+	ProductID string `json:"product_id"`
+	Sequence int64 `json:"sequence"`
+	Time string `json:"time"`
+}
+
+type HeartbeatResponse struct {
+	Type string `json:"type"`
+	Sequence int64 `json:"sequence"`
+	LastTradeID int64 `json:"last_trade_id"`
+	ProductID string `json:"product_id"`
+	Time string `json:"time"`
+}
+
+type ErrorResponse struct {
+	Type string `json:"type"`
+	Message string `json:"message"`
+	Reason string `json:"reason"`
+}
+
+type ChannelResponse struct {
+	Name string `json:"name"`
+	ProductIDs []string `json:"product_ids"`
+}
+
+type SubscribeResponse struct {
+	Type string                  `json:"type"`
+	Channels []ChannelResponse `json:"channels"`
+}
+
+type TickerResponse struct {
+	Type string `json:"type"`
+	TradeID int64 `json:"trade_id"`
+	Sequence int64 `json:"sequence"`
+	Time string `json:"time"`
+	ProductID string `json:"product_id"`
+	Price string `json:"price"`
+	Side string `json:"side"`
+	Size string `json:"last_size"`
+	BestBid string `json:"best_bid"`
+	BestAsk string `json:"best_ask"`
+	Volume24h string `json:"volume_24h"`
+	Open24h string `json:"open_24h"`
+	High24h string `json:"high_24h"`
+	Low24h string `json:"low_24h"`
+}
+
+type SnapshotResponse struct {
+	Type string `json:"type"`
+	Time string `json:"time"`
+	Bids [][]string `json:"bids"`
+	Asks [][]string `json:"asks"`
+}
+
+type L2UpdateResponse struct {
+	Type string `json:"type"`
+	Time string `json:"time"`
+	Price string `json:"price"`
+	Changes [][]string `json:"changes"`
 }
 
 type WSParser struct {
@@ -89,8 +160,6 @@ func (p *WSParser) Subscribe(products []string) {
 	}
 }
 
-type Datum map[string]string
-
 func (p *WSParser) createOutputWriter() {
 	if len(p.output)==0 {
 		t := time.Now()
@@ -123,6 +192,76 @@ func (p *WSParser) createOutputWriter() {
 	}
 }
 
+func (p *WSParser) parsePayload(msg []byte) {
+	header := GenericResponse{}
+	err := json.Unmarshal(msg, &header)
+	if err != nil {
+		log.Print("parsePayload: parse error during json unmarshal");
+		return
+	}
+
+	switch header.Type {
+	case "ticker":
+		resp := TickerResponse{}
+		err := json.Unmarshal(msg, &resp)
+		if err != nil {
+			log.Fatal("tickerResponse: unable to parse: ", err)
+		}
+		log.Printf("received ticker=%v\n", resp)
+
+	case "match":
+		resp := MatchResponse{}
+		err := json.Unmarshal(msg, &resp)
+		if err != nil {
+			log.Fatal("matchResponse: unable to parse: ", err)
+		}
+		log.Printf("match: %v\n", resp)
+
+	case "subscriptions":
+		resp := SubscribeResponse{}
+		err := json.Unmarshal(msg, &resp)
+		if err != nil {
+			log.Fatal("subscribeResponse: unable to parse: ", err)
+		}
+		log.Printf("subscribe: %v\n", resp.Channels)
+
+	case "error":
+		resp := ErrorResponse{}
+		err := json.Unmarshal(msg, &resp)
+		if err != nil {
+			log.Fatal("errorResponse: unable to parse: ", err)
+		}
+		log.Printf("received error=%v reason=%v\n", resp.Message, resp.Reason)
+
+	case "heartbeat":
+		resp := HeartbeatResponse{}
+		err := json.Unmarshal(msg, &resp)
+		if err != nil {
+			log.Fatal("heartbeatResponse: unable to parse: ", err)
+		}
+		log.Printf("received heartbeat=%v\n", resp)
+
+	case "l2update":
+		resp := L2UpdateResponse{}
+		err := json.Unmarshal(msg, &resp)
+		if err != nil {
+			log.Fatal("l2updateResponse: unable to parse: ", err)
+		}
+		log.Printf("received l2update=%v\n", resp)
+
+	case "snapshot":
+		resp := SnapshotResponse{}
+		err := json.Unmarshal(msg, &resp)
+		if err != nil {
+			log.Fatal("snapshotResponse: unable to parse: ", err)
+		}
+		log.Printf("received snapshot=%v\n", resp)
+
+	default:
+		log.Printf("unhandled message type=%v\n", header.Type)
+	}
+}
+
 func (p *WSParser) commitRaw(ts time.Time, msg []byte) {
 	header, err := ts.MarshalText()
 	if err != nil {
@@ -135,66 +274,6 @@ func (p *WSParser) commitRaw(ts time.Time, msg []byte) {
 	p.fd.Write(msg)
 }
 
-func (p *WSParser) commitDatum(ts time.Time, d Datum) {
-	var record []string
-	for _, k := range p.header {
-		record = append(record, d[k])
-	}
-	p.writer.Write(record)
-	p.writer.Flush()
-}
-
-func toDatum(m map[string]interface{}) Datum {
-	res := make(map[string]string)
-	for k,v := range m {
-		switch vv := v.(type) {
-		case string:
-			res[k] = vv
-		case float64:
-			res[k] = strconv.FormatFloat(vv, 'f', 2, 64)
-		}
-	}
-	return res
-}
-
-func (p *WSParser) parsePayload(msg []byte) Datum {
-	var v map[string]interface{}
-	err := json.Unmarshal(msg, &v)
-	if err != nil {
-		log.Print("parsePayload: parse error during json unmarshal");
-		return nil
-	}
-
-	var type_ interface{}
-	var ok bool
-	if type_, ok = v["type"]; !ok {
-		log.Print("json payload doesnt have type field")
-		return nil
-	}
-
-	switch type_ {
-	case "ticker":
-		return toDatum(v)
-	case "subscriptions":
-		channels := v["channels"].([]interface{})
-		for _, channel := range channels {
-			ch := channel.(map[string]interface{})
-			products := ch["product_ids"].([]interface{})
-			if len(products)==0 {
-				log.Fatal("subscribe: no products returned")
-			}
-			log.Printf("subscribe: channel=%v products=%v\n", ch["name"], products)
-		}
-
-	case "heartbeat":
-		log.Printf("heartbeat")
-	default:
-		fmt.Printf("unhandled message type=%v\n", type_)
-	}
-
-	return nil
-}
-
 func (p *WSParser) captureMessage(ts time.Time, message []byte) {
 	if p.writer == nil && p.fd == nil {
 		p.createOutputWriter()
@@ -202,12 +281,8 @@ func (p *WSParser) captureMessage(ts time.Time, message []byte) {
 
 	if p.raw {
 		p.commitRaw(ts, message)
-		return
-	}
-
-	res := p.parsePayload(message)
-	if res != nil {
-		p.commitDatum(ts, res)
+	} else {
+		p.parsePayload(message)
 	}
 }
 
