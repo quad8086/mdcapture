@@ -122,12 +122,19 @@ func (p *WSParser) createOutputWriter() {
 	}
 }
 
-func (p *WSParser) commitRaw(msg []byte) {
+func (p *WSParser) commitRaw(ts time.Time, msg []byte) {
+	header, err := ts.MarshalText()
+	if err != nil {
+		log.Fatal("commitRaw: cannot marshal timestamp")
+	}
+	header = append(header, ' ')
+	p.fd.Write(header)
+
 	msg = append(msg, '\n')
 	p.fd.Write(msg)
 }
 
-func (p *WSParser) commitDatum(d Datum) {
+func (p *WSParser) commitDatum(ts time.Time, d Datum) {
 	var record []string
 	for _, k := range p.header {
 		record = append(record, d[k])
@@ -187,19 +194,19 @@ func (p *WSParser) parsePayload(msg []byte) Datum {
 	return nil
 }
 
-func (p *WSParser) captureMessage(message []byte) {
+func (p *WSParser) captureMessage(ts time.Time, message []byte) {
 	if p.writer == nil && p.fd == nil {
 		p.createOutputWriter()
 	}
 
 	if p.raw {
-		p.commitRaw(message)
+		p.commitRaw(ts, message)
 		return
 	}
 
 	res := p.parsePayload(message)
 	if res != nil {
-		p.commitDatum(res)
+		p.commitDatum(ts, res)
 	}
 }
 
@@ -209,12 +216,14 @@ func (p *WSParser) handleRead() {
 		log.Fatal(err)
 	}
 
+	ts := time.Now()
+
 	if messageType == websocket.PingMessage {
 		p.conn.WriteMessage(websocket.PongMessage, []byte(time.Now().String()))
 	}
 
 	if messageType == websocket.TextMessage {
-		p.captureMessage(message)
+		p.captureMessage(ts, message)
 	}
 
 	if messageType == websocket.BinaryMessage {
