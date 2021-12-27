@@ -49,6 +49,7 @@ func NewWSParser(endpoint string, output string, subtype string, raw bool) (*WSP
 		log.Fatal(err)
 	}
 
+	log.Printf("NewWSParser: connected to endpoint=%v subtype=%v\n", endpoint, subtype)
 	p.conn = conn
 	return p
 }
@@ -71,7 +72,7 @@ func (p *WSParser) Subscribe(products []string) {
 		req = SubscribeReq{
 			Type: "subscribe",
 			ProductIds: products,
-			Channels: []string{channelTicker, channelLevel2, channelHeartbeat},
+			Channels: []string{channelTicker, channelLevel2, channelMatches, channelHeartbeat},
 		}
 	default:
 		log.Fatalf("unknown subscription type=%v", p.subtype)
