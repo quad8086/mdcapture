@@ -11,13 +11,15 @@ all: deps build
 
 deps:
 	$(GO) mod download github.com/gorilla/websocket
-	$(GO) mod download github.com/jessevdk/go-flags@v1.5.0
+	$(GO) mod download github.com/jessevdk/go-flags
+	$(GO) get github.com/gorilla/websocket
+	$(GO) get github.com/jessevdk/go-flags
 
 build:
 	$(GO) build
 
 clean:
-	$(RM) $(TARGET)
+	$(RM) $(TARGET) go.sum
 
 install:
 	mkdir -p $(INSTALL_DIR)/bin
