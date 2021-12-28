@@ -14,6 +14,7 @@ func main() {
 		SubscriptionType string `short:"s" long:"subscription-type" description:"subscription type (trades|quotes_trades)" default:"trades"`
 		Raw bool `short:"r" long:"raw" description:"capture raw json"`
 		Directory string `short:"D" long:"directory" description:"specify output directory"`
+		Status bool `short:"S" long:"status" description:"periodically output status"`
 	}
 
 	log.SetPrefix("mdcapture ")
@@ -28,7 +29,7 @@ func main() {
 		log.Fatal("please specify products")
 	}
 
-	p := ws_parser.NewWSParser(opts.Endpoint, opts.SubscriptionType, opts.Raw, opts.Directory)
+	p := ws_parser.NewWSParser(opts.Endpoint, opts.SubscriptionType, opts.Raw, opts.Directory, opts.Status)
 	p.Subscribe(opts.Products)
 	p.Run()
 	os.Exit(0)

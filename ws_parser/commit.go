@@ -6,15 +6,18 @@ import (
 	"io"
 	"log"
 	"fmt"
+	"sort"
 	"encoding/csv"
 	"path/filepath"
 )
 
 type Committer struct {
 	raw_fd *os.File
+	raw_count int64
 	directory string
 	headers map[string][]string
 	writers map[string]*csv.Writer
+	counts map[string]int64
 }
 
 func NewCommitter(directory string) (*Committer) {
@@ -24,7 +27,7 @@ func NewCommitter(directory string) (*Committer) {
 			log.Panicf("Committer: cannot create direcory=%v: %v\n", directory, err)
 		}
 	}
-	c := &Committer{nil, directory, make(map[string][]string), make(map[string]*csv.Writer)}
+	c := &Committer{nil, 0, directory, make(map[string][]string), make(map[string]*csv.Writer), make(map[string]int64)}
 	return c
 }
 
@@ -66,10 +69,13 @@ func (c *Committer) commitRawPayload(ts time.Time, msg []byte) {
 
 	msg = append(msg, '\n')
 	fd.Write(msg)
+
+	c.raw_count += 1
 }
 
 func (c *Committer) RegisterTable(name string, header []string) {
 	c.headers[name] = header
+	c.counts[name] = 0
 }
 
 func (c *Committer) CommitRecord(ts time.Time, name string, record []string) {
@@ -92,8 +98,28 @@ func (c *Committer) CommitRecord(ts time.Time, name string, record []string) {
 		}
 	}
 
+	c.counts[name] = c.counts[name] + 1
 	writer.Write(record)
 	writer.Flush()
+}
+
+func (c *Committer) Status() (string) {
+	if c.raw_fd != nil {
+		offset, _ := c.raw_fd.Seek(0, io.SeekCurrent)
+		return fmt.Sprintf("raw_count=%v raw_offset=%v", c.raw_count, offset)
+	}
+
+	var keys []string
+	for k,_ := range c.counts {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var res string
+	for _,k := range keys {
+		res += fmt.Sprintf("%v=%v ", k, c.counts[k])
+	}
+	return res
 }
 
 func (c *Committer) Close() {

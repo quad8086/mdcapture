@@ -20,16 +20,18 @@ type WSParser struct {
 	headers map[string][]string
 	start_ts time.Time
 	last_ts time.Time
+	show_status bool
 }
 
-func NewWSParser(endpoint string, subtype string, raw bool, directory string) (*WSParser) {
+func NewWSParser(endpoint string, subtype string, raw bool, directory string, show_status bool) (*WSParser) {
 	c := NewCommitter(directory)
-	p := &WSParser{endpoint, nil, nil, subtype, raw, c, make(map[string][]string), time.Now(), time.Time{}}
+	p := &WSParser{endpoint, nil, nil, subtype, raw, c, make(map[string][]string), time.Now(), time.Time{}, show_status}
 
 	c.RegisterTable("ticker", []string{"type", "recv_ts", "time", "product_id", "sequence", "qty", "price", "side", "trade_id",
 		"best_bid", "best_ask", "open_24h", "low_24h", "high_24h", "volume_24h", "volume_30d"})
-	c.RegisterTable("match", []string{"type", "recv_ts", "time", "product_id", "trade_id", "side", "size", "price"})
 	c.RegisterTable("level", []string{"type", "recv_ts", "time", "product_id", "side", "price", "qty"})
+	c.RegisterTable("match", []string{"type", "recv_ts", "time", "product_id", "trade_id", "side", "qty", "price", "sequence",
+		"maker_id", "taker_id"})
 
 	d := websocket.Dialer{TLSClientConfig: &tls.Config{RootCAs: nil, InsecureSkipVerify: true}, HandshakeTimeout: 10*time.Second}
 	conn, _, err := d.Dial(p.Endpoint, nil)
@@ -43,25 +45,26 @@ func NewWSParser(endpoint string, subtype string, raw bool, directory string) (*
 }
 
 func (p *WSParser) Subscribe(products []string) {
-	var req interface{}
+	var channels []string
 	switch p.subtype {
 	case "trades":
-		req = SubscribeReq{
-			Type: "subscribe",
-			ProductIds: products,
-			Channels: []string{channelTicker, channelHeartbeat},
-		}
+		channels = []string{channelTicker}
 
 	case "quotes_trades":
-		req = SubscribeReq{
-			Type: "subscribe",
-			ProductIds: products,
-			Channels: []string{channelTicker, channelLevel2, channelHeartbeat},
-		}
+		channels = []string{channelTicker, channelMatches, channelLevel2}
+
 	default:
 		log.Fatalf("unknown subscription type=%v\n", p.subtype)
 	}
 
+	var req SubscribeReq
+	req = SubscribeReq{
+		Type: "subscribe",
+		ProductIds: products,
+		Channels: channels,
+	}
+
+	log.Printf("subscribe products=%v channels=%v\n", products, channels)
 	buf, err := json.Marshal(req)
 	if err != nil {
 		log.Fatal(err)
@@ -120,12 +123,16 @@ func (p *WSParser) parsePayload(ts time.Time, msg []byte) {
 		}
 
 	case "match":
+	case "last_match":
 		resp := MatchResponse{}
 		err = json.Unmarshal(msg, &resp)
 		if err != nil {
 			log.Fatal("response: unable to parse: ", err)
 		}
-		log.Printf("received type=%v response=%v\n", resp.Type, resp)
+		record := []string{resp.Type, s_recv_ts, resp.Time, resp.ProductID, strconv.FormatInt(resp.TradeID, 10),
+			resp.Side, resp.Size, resp.Price,
+			strconv.FormatInt(resp.Sequence, 10), resp.MakerOrderID, resp.TakerOrderID}
+		p.committer.CommitRecord(ts, "match", record)
 
 	case "subscriptions":
 		resp := SubscribeResponse{}
@@ -191,10 +198,16 @@ func (p *WSParser) Run() {
 		p.Close()
 	}()
 
+	var report_ts time.Time = time.Now()
 	for {
 		p.last_ts = time.Now()
 		if p.last_ts.Day() != p.start_ts.Day() {
 			break
+		}
+
+		if p.show_status && p.last_ts.Sub(report_ts).Seconds() > 5 {
+			log.Printf("committer: %s\n", p.committer.Status())
+			report_ts = p.last_ts
 		}
 
 		p.handleRead()

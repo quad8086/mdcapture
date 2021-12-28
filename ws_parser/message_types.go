@@ -23,6 +23,7 @@ type BaseResponse struct {
 type MatchResponse struct {
 	Type string `json:"type"`
 	Time string `json:"time"`
+	ProductID string `json:"product_id"`
 	Sequence int64 `json:"sequence"`
 	TradeID int64 `json:"trade_id"`
 	MakerOrderID string `json:"maker_order_id"`
@@ -30,7 +31,6 @@ type MatchResponse struct {
 	Side string `json:"side"`
 	Size string `json:"size"`
 	Price string `json:"price"`
-	ProductID string `json:"product_id"`
 }
 
 type HeartbeatResponse struct {
