@@ -11,7 +11,7 @@ func main() {
 	var opts struct {
 		Endpoint string `short:"E" long:"endpoint" description:"override endpoint" default:"wss://ws-feed-public.sandbox.exchange.coinbase.com"`
 		Products []string `short:"p" long:"products" description:"define products list"`
-		SubscriptionType string `short:"s" long:"subscription-type" description:"specify subscription type" default:"trades"`
+		SubscriptionType string `short:"s" long:"subscription-type" description:"subscription type (trades|quotes_trades)" default:"trades"`
 		Output string `short:"o" long:"output" description:"override output filename"`
 		Raw bool `short:"r" long:"raw" description:"capture raw json"`
 	}
