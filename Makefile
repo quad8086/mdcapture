@@ -5,7 +5,7 @@ INSTALL_ROOT=$(SRCDIR)
 INSTALL_DIR=$(INSTALL_ROOT)/.install
 TARGET=mdcapture
 
-all: build
+all: deps build
 
 deps:
 	$(GO) mod download github.com/gorilla/websocket
