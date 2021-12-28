@@ -19,9 +19,13 @@ Websocket market data capture utility for coinbase (written in Go)
 ```sh
 <git clone somewhere>
 go mod download github.com/gorilla/websocket
-go mod github.com/jessevdk/go-flags
+go mod download github.com/jessevdk/go-flags
+go get github.com/gorilla/websocket
+go get github.com/jessevdk/go-flags
 go build
 ```
+
+Or run make.
 
 ## Run
 
