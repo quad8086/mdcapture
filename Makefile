@@ -11,7 +11,7 @@ all: deps build
 
 deps:
 	$(GO) mod download github.com/gorilla/websocket
-	$(GO) mod download github.com/jessevdk/go-flags
+	$(GO) mod download github.com/jessevdk/go-flags@v1.5.0
 
 build:
 	$(GO) build
