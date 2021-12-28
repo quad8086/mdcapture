@@ -12,8 +12,8 @@ func main() {
 		Endpoint string `short:"E" long:"endpoint" description:"override endpoint" default:"wss://ws-feed-public.sandbox.exchange.coinbase.com"`
 		Products []string `short:"p" long:"products" description:"define products list"`
 		SubscriptionType string `short:"s" long:"subscription-type" description:"subscription type (trades|quotes_trades)" default:"trades"`
-		Output string `short:"o" long:"output" description:"override output filename"`
 		Raw bool `short:"r" long:"raw" description:"capture raw json"`
+		Directory string `short:"D" long:"directory" description:"specify output directory"`
 	}
 
 	log.SetPrefix("mdcapture ")
@@ -28,7 +28,7 @@ func main() {
 		log.Fatal("please specify products")
 	}
 
-	p := ws_parser.NewWSParser(opts.Endpoint, opts.Output, opts.SubscriptionType, opts.Raw)
+	p := ws_parser.NewWSParser(opts.Endpoint, opts.SubscriptionType, opts.Raw, opts.Directory)
 	p.Subscribe(opts.Products)
 	p.Run()
 	os.Exit(0)

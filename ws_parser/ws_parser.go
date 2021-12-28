@@ -1,7 +1,6 @@
 package ws_parser
 
 import (
-	"os"
 	"log"
 	"time"
 	"strconv"
@@ -15,17 +14,15 @@ type WSParser struct {
 	Endpoint string
 	conn *websocket.Conn
 	writer *csv.Writer
-	raw_fd *os.File
-	output string
 	subtype string
 	raw bool
 	committer *Committer
 	headers map[string][]string
 }
 
-func NewWSParser(endpoint string, output string, subtype string, raw bool) (*WSParser) {
-	c := NewCommitter()
-	p := &WSParser{endpoint, nil, nil, nil, output, subtype, raw, c, make(map[string][]string)}
+func NewWSParser(endpoint string, subtype string, raw bool, directory string) (*WSParser) {
+	c := NewCommitter(directory)
+	p := &WSParser{endpoint, nil, nil, subtype, raw, c, make(map[string][]string)}
 
 	c.RegisterTable("ticker", []string{"type", "recv_ts", "time", "product_id", "sequence", "qty", "price", "side", "trade_id",
 		"best_bid", "best_ask", "open_24h", "low_24h", "high_24h", "volume_24h", "volume_30d"})

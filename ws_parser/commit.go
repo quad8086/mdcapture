@@ -7,23 +7,36 @@ import (
 	"log"
 	"fmt"
 	"encoding/csv"
+	"path/filepath"
 )
 
 type Committer struct {
 	raw_fd *os.File
+	directory string
 	headers map[string][]string
 	writers map[string]*csv.Writer
 }
 
-func NewCommitter() (*Committer) {
-	c := &Committer{nil, make(map[string][]string), make(map[string]*csv.Writer)}
+func NewCommitter(directory string) (*Committer) {
+	if len(directory)>0 {
+		err := os.MkdirAll(directory, 0755)
+		if err != nil {
+			log.Panicf("Committer: cannot create direcory=%v: %v\n", directory, err)
+		}
+	}
+	c := &Committer{nil, directory, make(map[string][]string), make(map[string]*csv.Writer)}
 	return c
 }
 
-func createOutputFilename(content_type string, extension string) string {
+func (c *Committer) createOutputFilename(content_type string, extension string) string {
 	t := time.Now()
 	y,m,d := t.Date()
-	return fmt.Sprintf("%04d%02d%02d.%s.%s", y, m, d, content_type, extension)
+	fname := fmt.Sprintf("%04d%02d%02d.%s.%s", y, m, d, content_type, extension)
+	if len(c.directory)>0 {
+		fname = filepath.Join(c.directory, fname)
+	}
+
+	return fname
 }
 
 func (c *Committer) getRawOutputWriter() (*os.File) {
@@ -31,7 +44,7 @@ func (c *Committer) getRawOutputWriter() (*os.File) {
 		return c.raw_fd
 	}
 
-	fname := createOutputFilename("raw", "json")
+	fname := c.createOutputFilename("raw", "json")
 	log.Printf("createOutputWriter: output=%v\n", fname)
 	fd, err := os.OpenFile(fname, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -62,7 +75,7 @@ func (c *Committer) RegisterTable(name string, header []string) {
 func (c *Committer) CommitRecord(ts time.Time, name string, record []string) {
 	writer, exists := c.writers[name]
 	if !exists {
-		fname := createOutputFilename(name, "csv")
+		fname := c.createOutputFilename(name, "csv")
 		log.Printf("createOutputWriter: name=%v fname=%v\n", name, fname)
 		fd, err := os.OpenFile(fname, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
