@@ -18,11 +18,13 @@ type WSParser struct {
 	raw bool
 	committer *Committer
 	headers map[string][]string
+	start_ts time.Time
+	last_ts time.Time
 }
 
 func NewWSParser(endpoint string, subtype string, raw bool, directory string) (*WSParser) {
 	c := NewCommitter(directory)
-	p := &WSParser{endpoint, nil, nil, subtype, raw, c, make(map[string][]string)}
+	p := &WSParser{endpoint, nil, nil, subtype, raw, c, make(map[string][]string), time.Now(), time.Time{}}
 
 	c.RegisterTable("ticker", []string{"type", "recv_ts", "time", "product_id", "sequence", "qty", "price", "side", "trade_id",
 		"best_bid", "best_ask", "open_24h", "low_24h", "high_24h", "volume_24h", "volume_30d"})
@@ -169,14 +171,14 @@ func (p *WSParser) handleRead() {
 		log.Fatal(err)
 	}
 
-	ts := time.Now()
+	recv_ts := time.Now()
 
 	if messageType == websocket.PingMessage {
-		p.conn.WriteMessage(websocket.PongMessage, []byte(time.Now().String()))
+		p.conn.WriteMessage(websocket.PongMessage, []byte(recv_ts.String()))
 	}
 
 	if messageType == websocket.TextMessage {
-		p.captureMessage(ts, message)
+		p.captureMessage(recv_ts, message)
 	}
 
 	if messageType == websocket.BinaryMessage {
@@ -190,6 +192,11 @@ func (p *WSParser) Run() {
 	}()
 
 	for {
+		p.last_ts = time.Now()
+		if p.last_ts.Day() != p.start_ts.Day() {
+			break
+		}
+
 		p.handleRead()
 	}
 }
