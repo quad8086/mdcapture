@@ -5,6 +5,8 @@ INSTALL_ROOT=$(SRCDIR)
 INSTALL_DIR=$(INSTALL_ROOT)/.install
 TARGET=mdcapture
 
+.NOTPARALLEL:
+
 all: deps build
 
 deps:
