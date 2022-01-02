@@ -12,8 +12,10 @@ all: deps build
 deps:
 	$(GO) mod download github.com/gorilla/websocket
 	$(GO) mod download github.com/jessevdk/go-flags
+	$(GO) mod download github.com/valyala/fasttemplate
 	$(GO) get github.com/gorilla/websocket
 	$(GO) get github.com/jessevdk/go-flags
+	$(GO) get github.com/valyala/fasttemplate
 
 build:
 	$(GO) build

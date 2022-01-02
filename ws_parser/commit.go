@@ -9,6 +9,7 @@ import (
 	"sort"
 	"encoding/csv"
 	"path/filepath"
+	"github.com/valyala/fasttemplate"
 )
 
 type Committer struct {
@@ -22,9 +23,20 @@ type Committer struct {
 
 func NewCommitter(directory string) (*Committer) {
 	if len(directory)>0 {
+		tpl := fasttemplate.New(directory, "{", "}")
+		t := time.Now()
+		y,m,d := t.Date()
+		vars := map[string]interface{}{
+			"y": fmt.Sprintf("%04d", y),
+			"m": fmt.Sprintf("%02d", m),
+			"d": fmt.Sprintf("%02d", d),
+			"ymd": fmt.Sprintf("%04d%02d%02d", y, m, d),
+		}
+		directory = tpl.ExecuteString(vars)
+		log.Printf("committer: directory=%v\n", directory)
 		err := os.MkdirAll(directory, 0755)
 		if err != nil {
-			log.Panicf("Committer: cannot create direcory=%v: %v\n", directory, err)
+			log.Panicf("Committer: cannot create directory=%v: %v\n", directory, err)
 		}
 	}
 	c := &Committer{nil, 0, directory, make(map[string][]string), make(map[string]*csv.Writer), make(map[string]int64)}
