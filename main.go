@@ -15,6 +15,7 @@ func main() {
 		Raw bool `short:"r" long:"raw" description:"capture raw json"`
 		Directory string `short:"D" long:"directory" description:"specify output directory; templates {y}, {m}, {d}, {ymd}"`
 		Status bool `short:"S" long:"status" description:"periodically output status"`
+		LogOutput string `short:"l" long:"log-output" description:"log output to specified file"`
 	}
 
 	log.SetPrefix("mdcapture ")
@@ -27,6 +28,14 @@ func main() {
 
 	if len(opts.Products)==0 {
 		log.Fatal("please specify products")
+	}
+
+	if len(opts.LogOutput) > 0 {
+		fd, err := os.OpenFile(opts.LogOutput, os.O_WRONLY|os.O_CREATE, 0644)
+		if err != nil {
+			log.Fatal("cannot open log file:", err)
+		}
+		log.SetOutput(fd)
 	}
 
 	p := ws_parser.NewWSParser(opts.Endpoint, opts.SubscriptionType, opts.Raw, opts.Directory, opts.Status)
