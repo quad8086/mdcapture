@@ -101,7 +101,7 @@ func (c *Committer) CommitRecord(ts time.Time, name string, record []string) {
 		}
 		writer = csv.NewWriter(fd)
 		c.writers[name] = writer
-		offset, err := fd.Seek(0, io.SeekCurrent)
+		offset, err := fd.Seek(0, io.SeekEnd)
 		if err != nil {
 			log.Fatal("cannot ftell:", err)
 		}
