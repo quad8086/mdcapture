@@ -26,10 +26,6 @@ func main() {
 		log.Fatal("options error")
 	}
 
-	if len(opts.Products)==0 {
-		log.Fatal("please specify products")
-	}
-
 	if len(opts.LogOutput) > 0 {
 		fd, err := os.OpenFile(opts.LogOutput, os.O_WRONLY|os.O_CREATE, 0644)
 		if err != nil {
@@ -38,8 +34,7 @@ func main() {
 		log.SetOutput(fd)
 	}
 
-	p := ws_parser.NewWSParser(opts.Endpoint, opts.SubscriptionType, opts.Raw, opts.Directory, opts.Status)
-	p.Subscribe(opts.Products)
+	p := ws_parser.NewWSParser(opts.Endpoint, opts.SubscriptionType, opts.Raw, opts.Directory, opts.Status, opts.Products)
 	p.Run()
 	os.Exit(0)
 }

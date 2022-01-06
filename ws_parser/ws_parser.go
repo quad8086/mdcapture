@@ -11,42 +11,27 @@ import (
 )
 
 type WSParser struct {
-	Endpoint string
+	endpoint string
 	conn *websocket.Conn
 	writer *csv.Writer
-	subtype string
+	channels []string
 	raw bool
 	committer *Committer
 	headers map[string][]string
 	start_ts time.Time
 	last_ts time.Time
 	show_status bool
+	products []string
 }
 
-func NewWSParser(endpoint string, subtype string, raw bool, directory string, show_status bool) (*WSParser) {
-	c := NewCommitter(directory)
-	p := &WSParser{endpoint, nil, nil, subtype, raw, c, make(map[string][]string), time.Now(), time.Time{}, show_status}
-
-	c.RegisterTable("ticker", []string{"type", "recv_ts", "time", "product_id", "sequence", "qty", "price", "side", "trade_id",
-		"best_bid", "best_ask", "open_24h", "low_24h", "high_24h", "volume_24h", "volume_30d"})
-	c.RegisterTable("level", []string{"type", "recv_ts", "time", "product_id", "side", "price", "qty"})
-	c.RegisterTable("match", []string{"type", "recv_ts", "time", "product_id", "trade_id", "side", "qty", "price", "sequence",
-		"maker_id", "taker_id"})
-
-	d := websocket.Dialer{TLSClientConfig: &tls.Config{RootCAs: nil, InsecureSkipVerify: true}, HandshakeTimeout: 10*time.Second}
-	conn, _, err := d.Dial(p.Endpoint, nil)
-	if err != nil {
-		log.Fatal(err)
+func NewWSParser(endpoint string, subtype string, raw bool, directory string, show_status bool, products []string) (*WSParser) {
+	if len(products) == 0 {
+		log.Fatal("NewWSParser: no products specified")
 	}
 
-	log.Printf("NewWSParser: connected to endpoint=%v subtype=%v\n", endpoint, subtype)
-	p.conn = conn
-	return p
-}
-
-func (p *WSParser) Subscribe(products []string) {
+	// figure out channels
 	var channels []string
-	switch p.subtype {
+	switch subtype {
 	case "trades":
 		channels = []string{channelTicker}
 
@@ -54,17 +39,47 @@ func (p *WSParser) Subscribe(products []string) {
 		channels = []string{channelTicker, channelMatches, channelLevel2}
 
 	default:
-		log.Fatalf("unknown subscription type=%v\n", p.subtype)
+		log.Fatalf("unknown subscription type=%v\n", subtype)
 	}
 
+	c := NewCommitter(directory)
+	p := &WSParser{endpoint, nil, nil, channels, raw, c, make(map[string][]string), time.Now(), time.Time{}, show_status, products}
+
+	c.RegisterTable("ticker", []string{"type", "recv_ts", "time", "product_id", "sequence", "qty", "price", "side", "trade_id",
+		"best_bid", "best_ask", "open_24h", "low_24h", "high_24h", "volume_24h", "volume_30d"})
+	c.RegisterTable("level", []string{"type", "recv_ts", "time", "product_id", "side", "price", "qty"})
+	c.RegisterTable("match", []string{"type", "recv_ts", "time", "product_id", "trade_id", "side", "qty", "price", "sequence",
+		"maker_id", "taker_id"})
+
+	return p
+}
+
+func (p *WSParser) ConnectSubscribe() {
+	if p.conn != nil {
+		log.Printf("WSParser: connect: already connected\n")
+		return
+	}
+
+	// connect
+	d := websocket.Dialer{TLSClientConfig: &tls.Config{RootCAs: nil, InsecureSkipVerify: true}, HandshakeTimeout: 10*time.Second}
+	conn, _, err := d.Dial(p.endpoint, nil)
+	if err != nil {
+		log.Printf("ConnectSubscribe: error connecting: %v\n", err);
+		return
+	}
+
+	log.Printf("NewWSParser: now connected to endpoint=%v channels=%v\n", p.endpoint, p.channels)
+	p.conn = conn
+
+	// subscribe
 	var req SubscribeReq
 	req = SubscribeReq{
 		Type: "subscribe",
-		ProductIds: products,
-		Channels: channels,
+		ProductIds: p.products,
+		Channels: p.channels,
 	}
 
-	log.Printf("subscribe products=%v channels=%v\n", products, channels)
+	log.Printf("subscribe products=%v channels=%v\n", p.products, p.channels)
 	buf, err := json.Marshal(req)
 	if err != nil {
 		log.Fatal(err)
@@ -175,7 +190,8 @@ func (p *WSParser) captureMessage(ts time.Time, message []byte) {
 func (p *WSParser) handleRead() {
 	messageType, message, err := p.conn.ReadMessage()
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("handleRead: error: %v\n", err)
+		p.Disconnect()
 	}
 
 	recv_ts := time.Now()
@@ -199,14 +215,23 @@ func (p *WSParser) Run() {
 	}()
 
 	var report_ts time.Time = time.Now()
+	var connection_attempts int64 = 0
 	for {
 		p.last_ts = time.Now()
 		if p.last_ts.Day() != p.start_ts.Day() {
+			log.Printf("committer: exiting normally on day change\n")
 			break
 		}
 
+		if p.conn == nil {
+			time.Sleep(time.Duration(connection_attempts)*time.Second)
+			p.ConnectSubscribe()
+			connection_attempts++
+			continue
+		}
+
 		if p.show_status && p.last_ts.Sub(report_ts).Seconds() > 5 {
-			log.Printf("committer: %s\n", p.committer.Status())
+			log.Printf("committer: %v\n", p.committer.Status())
 			report_ts = p.last_ts
 		}
 
@@ -214,8 +239,18 @@ func (p *WSParser) Run() {
 	}
 }
 
-func (p *WSParser) Close() {
-	p.conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+func (p *WSParser) Disconnect() {
+	if p.conn == nil {
+		return
+	}
+
+	log.Printf("disconnecting\n")
+	//p.conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 	p.conn.Close()
+	p.conn = nil
+}
+
+func (p *WSParser) Close() {
+	p.Disconnect()
 	p.committer.Close()
 }
