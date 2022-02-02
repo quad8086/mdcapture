@@ -99,8 +99,8 @@ func (p *WSParser) parsePayload(ts time.Time, msg []byte) {
 		return
 	}
 
-	recv_ts, _ := ts.MarshalText()
-	s_recv_ts := string(recv_ts)
+	const layout = "20060102-150405.000000"
+	s_recv_ts := ts.Format(layout)
 
 	switch header.Type {
 	case "ticker":

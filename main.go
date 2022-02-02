@@ -13,7 +13,7 @@ func main() {
 		Products []string `short:"p" long:"products" description:"define products list"`
 		SubscriptionType string `short:"s" long:"subscription-type" description:"subscription (trades|quotes_trades)" default:"quotes_trades"`
 		Raw bool `short:"r" long:"raw" description:"capture raw json"`
-		Directory string `short:"D" long:"directory" description:"specify output directory; templates {y}, {m}, {d}, {ymd}"`
+		Directory string `short:"D" long:"directory" description:"specify output directory; template variables {y}, {m}, {d}, {ymd}"`
 		Status bool `short:"S" long:"status" description:"periodically output status"`
 		LogOutput string `short:"l" long:"log-output" description:"log output to specified file"`
 	}
